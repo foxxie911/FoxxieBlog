@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en_US">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="../../../styles/style.css">
+    <title>foxxie's den</title>
+</head>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>Resize Partitions with LVM on Arch Linux: A Step-by-Step Guide | foxxie's den</title>
+
+    <!-- Meta Description for better SEO -->
+    <meta name="description" content="Resize Partitions with LVM on Arch Linux: A Step-by-Step Guide by foxxie's den">
+    
+    <!-- Open Graph -->
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="Resize Partitions with LVM on Arch Linux: A Step-by-Step Guide">
+    <meta property="og:site_name" content="foxxie's den">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Resize Partitions with LVM on Arch Linux: A Step-by-Step Guide">
+
+    <!-- Article structured data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Article",
+      "headline": "Resize Partitions with LVM on Arch Linux: A Step-by-Step Guide",
+      "datePublished": "2026-01-03",
+      "publisher": {
+        "@type": "Organization",
+        "name": "foxxie's den"
+      },
+    }
+    </script>
+
+    <link rel="stylesheet" href="../../../styles/style.css">
+</head>
+
+<body>
+<nav>
+    <a href="../../../index.html">foxxie's den</a>
+</nav>
+    <div class="article_info">
+        <h1>Resize Partitions with LVM on Arch Linux: A Step-by-Step Guide</h1>
+        <small>2026-01-03</small>
+    </div>
+    <div class="article_body">
+        <h2>Background</h2>
+<p>Couple of days ago I installed Arch Linux with i3wm. During installation I enabled LVM without understanding its effects. But after I realized, by default Arch has allocated only 20 gigs of space for <code>\root</code> (which was almost full after installing my required packages) and rest of the space of the whole hard disk for <code>\home</code>. Both of these partitions were logically separate which is basically LVM is all about. So, scoured the internet to increase the space of my <code>root</code> directory. As it turns out, there are no single article that thoroughly covers this specific problem. I have read <a href="https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/8/html-single/configuring_and_managing_logical_volumes/index">RedHat's guide</a> on LVM, LVM's own <a href="https://www.man7.org/linux/man-pages/man8/lvm.8.html">documentation</a>, some other articles. After hours of searching and reading I was able to come up with a solution.</p>
+<h2>Prerequisites</h2>
+<ul>
+<li><strong>Backup your important data first</strong>. Any operation that modifies disk structures has the potential for data loss.</li>
+<li>You <strong>cannot shrink a mounted filesystem</strong>, so it’s important to perform these operations from a live environment (like an Arch ISO or live USB).</li>
+<li>I would give solution assuming you are using <strong>ext4</strong> filesystem. It is the default filesystem of Arch Linux unless you’ve specifically selected something else like Btrfs.</li>
+<li>If you're using <strong>Btrfs</strong>, you’ll need different commands which I won't cover now. (I would encourage you to write a blog if you happen to solve this problem.)</li>
+</ul>
+<h2>Steps</h2>
+<h3>Step 1: Boot into the Arch Live Environment</h3>
+<p>To perform this process safely, you need to boot into a live environment where <code>/home</code> and <code>/</code> aren’t mounted. The best way to do this is by booting from an <strong>Arch ISO</strong> or a <strong>live USB</strong>.</p>
+<h3>Step 2: Activate LVM</h3>
+<p>Once you’re in the live environment, you will need to activate the Logical Volume Manager (LVM) so you can make changes to your volumes. Run the following command to activate the volume group:</p>
+<pre><code class="language-bash">vgchange -ay
+</code></pre>
+<p>To verify that the logical volumes are available, use:</p>
+<pre><code class="language-bash">lvdisplay
+</code></pre>
+<p>This command will display details about your LVM volumes, ensuring everything is set up and accessible. <strong>Note the paths of partitions</strong>.</p>
+<h3>Step 3: Check <code>/home</code> Filesystem</h3>
+<p>Before you shrink the <code>/home</code> partition, you need to check its filesystem integrity. This can help prevent data corruption during the shrinking process.</p>
+<pre><code class="language-bash">e2fsck -f /dev/ArchinstallVg/home
+</code></pre>
+<p>This will check and fix any filesystem issues on <code>/home</code> before proceeding.</p>
+<h3>Step 4: Shrink the <code>/home</code> Filesystem</h3>
+<p>Next, you want to shrink the filesystem on the <code>/home</code> partition. For this example, we’ll shrink it by 20 gigs, leaving <code>/home</code> with approximately 130 gigs of space (you will have determine your space amount). Use the following command to resize the filesystem:</p>
+<pre><code class="language-bash">resize2fs /dev/ArchinstallVg/home 130G
+</code></pre>
+<blockquote>
+<p><strong>Always shrink the filesystem before shrinking the logical volume.</strong> If you shrink the logical volume first, it can cause filesystem corruption.</p>
+</blockquote>
+<h3>Step 5: Shrink the <code>/home</code> Logical Volume</h3>
+<p>Once the filesystem is resized, it’s time to shrink the logical volume itself. This will reduce the space allocated to <code>/home</code>, making room for the root (<code>/</code>) partition. To shrink the logical volume by 20 gigs, run:</p>
+<pre><code class="language-bash">lvreduce -L -20G /dev/ArchinstallVg/home
+</code></pre>
+<p>Confirm the action when prompted. Double-check the values to ensure you’re not shrinking it too much.</p>
+<h3>Step 6: Check root <code>/</code> Filesystem</h3>
+<p>Before you extend the root (<code>/</code>) partition, you need to check its filesystem integrity. This can help prevent data corruption during the shrinking process.</p>
+<pre><code class="language-bash">e2fsck -f /dev/ArchinstallVg/root
+</code></pre>
+<p>This will check and fix any filesystem issues on <code>/root</code> before proceeding.</p>
+<h3>Step 7: Extend the Root Logical Volume</h3>
+<p>Now that you’ve freed up 20 gigs of space, you can allocate that space to the root (<code>/</code>) partition. To do this, extend the root logical volume:</p>
+<pre><code class="language-bash">lvextend -L +20G /dev/ArchinstallVg/root
+</code></pre>
+<p>This command adds the 20 gigs of free space to the root partition.</p>
+<h3>Step 8: Grow the Root Filesystem</h3>
+<p>Now that you've extended the root logical volume, it’s time to grow the filesystem. For ext4, you can resize the filesystem with the following command:</p>
+<pre><code class="language-bash">resize2fs /dev/ArchinstallVg/root
+</code></pre>
+<p>This step ensures that the root partition recognizes and uses the newly added space.</p>
+<h3>Step 9: Reboot the System</h3>
+<p>Once you've resized the logical volumes and grown the filesystem, it's time to reboot the system back into your usual environment.</p>
+<pre><code class="language-bash">reboot
+</code></pre>
+<p>Once the system has rebooted, you can verify the changes by checking the disk usage:</p>
+<pre><code class="language-bash">lsblk
+df -h
+</code></pre>
+<p>These commands will show the updated sizes for your partitions and the amount of space available.</p>
+<h2>Bye Bye</h2>
+<p>By following this guide, you’ve successfully freed up space from <code>/home</code> and allocated it to your root partition. This process ensures that your root (<code>/</code>) gets its space allocated without breaking your filesystem.</p>
+
+    </div>
+</body>
+</html>
